@@ -34,7 +34,7 @@ body{
   margin: 0; width: 100%; min-height: 100vh; background: var(--bg);
   font-family: var(--font-main); line-height: 1.5; font-size: 1.4rem;
   overflow: hidden; overscroll-behavior: none; cursor: crosshair;
-  user-select: none;
+  user-select: none; touch-action: manipulation; -webkit-user-select: none;
 }
 canvas{ position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
@@ -194,6 +194,9 @@ const CONFIG = {
   cellPx: 10,                         // ukuran sel dither dalam px CSS (~10px pada 1440px)
   gridWidth: 144,                     // jumlah sel dither sepanjang layar
   sceneDetail: 3,                     // sampel scene per sel dither (makin tinggi = detail lebih tajam)
+  mobileDprCap: 1.0,                  // batas devicePixelRatio di HP (HP punya DPR 3: boros 9x piksel)
+  desktopDprCap: 2.0,
+  adaptiveQuality: true,              // turunkan kualitas otomatis kalau frame lambat
   ditherLevels: 5,                    // jumlah tingkat kecerahan (bentuk)
   palette: [                          // naik dari gelap ke terang
     [0.69, 0.49, 1.00],   // lavender
@@ -301,6 +304,10 @@ vec3 haze(vec3 rd){
 
 void main(){
   vec2 uv = (gl_FragCoord.xy - .5*uRes) / uRes.y;
+  /* bingkai menyesuaikan bentuk layar: di HP (portrait) kamera mundur supaya
+     planet + cincin tidak kepotong dan porsinya tetap wajar */
+  float aspect = uRes.x / max(uRes.y, 1.0);
+  uv /= clamp(aspect/1.45, 0.55, 1.0);
   vec3 ro = vec3(0.0, 0.14, 4.15);
   ro.xz *= rot2(0.06*sin(uTime*.15) + uMouse.x*.10);
   vec3 ta = vec3(uMouse.x*.13, 0.06 + uMouse.y*.10, 0.0);
@@ -396,6 +403,7 @@ uniform float uAberr;
 uniform float uBloomAmt;
 uniform float uGrain;
 uniform float uWarp;
+uniform float uQuality;
 uniform float uDensity;
 uniform float uStretch;
 uniform float uLevels;
@@ -497,10 +505,15 @@ void main(){
   vec2 uvR = uvD + dir*ab, uvG = uvD, uvB = uvD - dir*ab;
 
   float cell = uCell;
-  vec3 cR = tileColor(uvR, resPx, cell);
-  vec3 cG = tileColor(uvG, resPx, cell);
-  vec3 cB = tileColor(uvB, resPx, cell);
-  vec3 col = vec3(cR.r, cG.g, cB.b);
+  vec3 col;
+  if(uQuality >= 1.5){
+    vec3 cR = tileColor(uvR, resPx, cell);
+    vec3 cG = tileColor(uvG, resPx, cell);
+    vec3 cB = tileColor(uvB, resPx, cell);
+    col = vec3(cR.r, cG.g, cB.b);
+  } else {
+    col = tileColor(uvG, resPx, cell) * vec3(1.02, 1.0, 1.04);
+  }
 
   /* ---- bloom ---- */
   vec3 bl = texture(uBloom, uvD).rgb * uBloomAmt * (0.85 + uKick*0.6);
@@ -515,8 +528,9 @@ void main(){
   float ang = atan(sc0.y, sc0.x) / 3.14159265;             // -1..1 (2 = satu putaran)
   float radPx = rad*resPx.y;
   float wS = uWarp*uWarp;                                  // efek warp dibentuk kuadratik
-  float elong = clamp((uSpeed - 1.0)*0.075 + uKick*0.22, 0.0, 1.0) * uStretch;
+  float elong = clamp((uSpeed - 1.0)*0.075, 0.0, 1.0) * uStretch;   // ekor hanya dari kecepatan
   for(int i=0;i<4;i++){
+    if(float(i) > 2.0 && uQuality < 1.5) break;             // kualitas rendah: 3 lapisan saja
     float fi = float(i);
     float cellPx = 104.0 / pow(1.5, fi);                   // ukuran sel: 104, 69, 46, 31 px
     float Nph  = resPx.y/cellPx;
@@ -529,7 +543,7 @@ void main(){
     float fU = U - ie;
     float ia = floor(ang*Nang);
     float thr = 0.72 + fi*0.035 - 0.05*(uDensity - 1.0);
-    float tailPx = cellPx*(0.45 + 4.0*wS + 6.0*elong);     // panjang ekor (ke arah pusat)
+    float tailPx = cellPx*(4.5*wS + 6.0*elong);            // 0 saat diam: bintang = titik kecil
     float kMax = 1.0 + tailPx/cellPx;
     for(int k=0;k<5;k++){
       if(float(k) > kMax) break;
@@ -650,12 +664,15 @@ function start(gl){
   let W = 0, H = 0, cellPx = 10, lowW = 0, lowH = 0, bloomW = 0, bloomH = 0;
   let sceneTex, sceneFB, bloomTex, bloomFB;
 
+  let quality = 2;                                   // 2 = penuh, 1 = sedang, 0 = hemat
+  const QUALITY_SCALE = [0.60, 0.78, 1.0];
   function resize(){
-    const dpr = Math.min(devicePixelRatio || 1, 2);
-    W = Math.floor(innerWidth * dpr); H = Math.floor(innerHeight * dpr);
+    const cap = isMobile ? CONFIG.mobileDprCap : CONFIG.desktopDprCap;
+    const dpr = Math.min(devicePixelRatio || 1, cap) * QUALITY_SCALE[quality];
+    W = Math.max(320, Math.floor(innerWidth * dpr)); H = Math.max(240, Math.floor(innerHeight * dpr));
     canvas.width = W; canvas.height = H;
     cellPx = Math.max(4, (innerWidth / CONFIG.gridWidth) * dpr);
-    const detail = Math.max(1, CONFIG.sceneDetail || 1);
+    const detail = Math.max(1, (CONFIG.sceneDetail || 1) - (quality === 0 ? 1 : 0));
     lowW = Math.max(32, Math.ceil(W / (cellPx / detail))); lowH = Math.max(32, Math.ceil(H / (cellPx / detail)));
     bloomW = Math.max(16, lowW >> 1); bloomH = Math.max(16, lowH >> 1);
     sceneTex = makeTex(lowW, lowH); sceneFB = makeFB(sceneTex);
@@ -737,6 +754,7 @@ function start(gl){
     entered: false, enterP: 0, timeScale: 1, simTime: 0, last: performance.now(),
     mouse: { x:0, y:0, tx:0, ty:0 }, sidebar: false, sidebarSize: 0, frames: 0,
     boostRamp: 1, holding: false, holdT: 0, warp: 0, speedPulse: 0,
+    frameMs: 16, qualityTimer: 0,
     speedIndex: 0, holdTimer: null
   };
   const speedSteps = isMobile ? CONFIG.mobileSpeedSteps : CONFIG.speedSteps;
@@ -802,13 +820,16 @@ function start(gl){
   }
   addEventListener('pointermove', onMove);
   onMove({ clientX: innerWidth/2, clientY: innerHeight/2 });
-  addEventListener('click', () => {
+  const doEnter = () => {
     if(state.entered) return;
     state.entered = true;
     initAudio();
     enterEl.classList.add('--out');
     document.getElementById('ui').classList.add('--on');
-  }, { once:false });
+  };
+  addEventListener('click', doEnter);            // desktop & sebagian HP
+  addEventListener('pointerup', doEnter);        // fallback sentuh
+  addEventListener('touchend', doEnter, { passive: true });
 
   /* sidebar reveal (mask radial) */
   function animateSidebar(dt){
@@ -842,6 +863,16 @@ function start(gl){
     audio.kickEnv *= 0.965;
     state.speedPulse *= 0.90;
     const kickVis = Math.max(audio.kickEnv, state.speedPulse);
+    /* kualitas adaptif: kalau frame lambat (HP), turunkan resolusi/efek bertahap */
+    state.frameMs += (dt*1000 - state.frameMs) * 0.08;
+    if(CONFIG.adaptiveQuality && state.entered){
+      state.qualityTimer += dt;
+      if(state.qualityTimer > 2.5 && quality > 0 && state.frameMs > 26){
+        quality--; state.qualityTimer = 0; state.frameMs = 0; resize();
+        console.log('[perf] kualitas diturunkan ke ' + quality + ' (frame ' + state.frameMs.toFixed(0) + ' ms)');
+      }
+    }
+
     state.mouse.x += (state.mouse.tx - state.mouse.x) * 0.06;
     state.mouse.y += (state.mouse.ty - state.mouse.y) * 0.06;
     state.enterP += ((state.entered ? 1 : 0) - state.enterP) * 0.03;
@@ -891,6 +922,7 @@ function start(gl){
     gl.uniform1f(pComp.u.uTime, state.simTime);
     gl.uniform1f(pComp.u.uSpeed, effScale);
     gl.uniform1f(pComp.u.uWarp, state.warp);
+    gl.uniform1f(pComp.u.uQuality, quality);
     gl.uniform1f(pComp.u.uKick, kickVis);
     gl.uniform2f(pComp.u.uMouse, state.mouse.x, state.mouse.y);
     gl.uniform2f(pComp.u.uCut, CONFIG.subjectCutLow, CONFIG.subjectCutHigh);
