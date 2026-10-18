@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en" class="font-main">
+<head>
+<meta charset="utf-8">
+<meta name="theme-color" content="#080808">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASTRODITHER-STYLE DEMO — [SIGNAL. LOST. BEAUTY. FOUND. DIGITAL. CHAOS.]</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23080808'/%3E%3Crect x='6' y='6' width='8' height='8' fill='%23b07cff'/%3E%3Crect x='18' y='14' width='8' height='8' fill='%23ff47bf'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS — sama seperti sumber: skala rem ikut lebar viewport
+   ============================================================ */
+:root{
+  --size: 1500;
+  --container-padding: 4rem;
+  --grid-gutter: 2rem;
+  --bg: #080808;
+  --fg: #fff;
+  --sidebar-size: 0;
+  --font-main: "Azeret Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (max-width: 640px){ :root{ --size: 390; --container-padding: 2rem; } }
+*{ box-sizing: border-box; }
+html{
+  font-size: clamp(1px, calc(10 * (100vw / var(--size))), 14px);
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+body{
+  margin: 0; width: 100%; min-height: 100vh; background: var(--bg);
+  font-family: var(--font-main); line-height: 1.5; font-size: 1.4rem;
+  overflow: hidden; overscroll-behavior: none; cursor: crosshair;
+  user-select: none;
+}
+canvas{ position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* grid & kontainer */
+.site-max{ width: 100%; padding-left: var(--container-padding); padding-right: var(--container-padding); }
+.main-grid{ display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); column-gap: var(--grid-gutter); }
+@media (min-width: 641px){ .main-grid{ grid-template-columns: repeat(12, minmax(0,1fr)); } }
+
+/* ============================================================
+   HUD
+   ============================================================ */
+.ui{ position: fixed; inset: 0; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 1s ease 0.35s; }
+.ui.--on{ opacity: 1; }
+.ui-inner{ position: relative; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding-top: 4.5rem; padding-bottom: 4.5rem; }
+.hud-top{ position: absolute; top: 4.5rem; left: 0; width: 100%; }
+.hud-bottom{ position: absolute; bottom: 4.5rem; left: 0; width: 100%; }
+.cell-1{ grid-column: 1 / span 4; }
+.cell-2{ grid-column: 5 / span 2; justify-self: end; }
+@media (min-width: 641px){
+  .cell-1{ grid-column: 1 / span 4; }
+  .cell-2{ grid-column: 9 / span 4; justify-self: start; }
+}
+.flex{ display: flex; align-items: center; }
+.divider{ width: 1px; align-self: stretch; background: #fff; margin: 0 1rem; opacity: .9; }
+.label{ font-weight: 700; text-transform: uppercase; letter-spacing: .01em; }
+.ui{ text-shadow: 0 0 10px rgba(0,0,0,.9), 0 1px 2px rgba(0,0,0,.8); }
+.link-like{ pointer-events: auto; cursor: pointer; }
+.link-like:hover{ text-decoration: underline; }
+.brand{ pointer-events: auto; text-decoration: none; color: inherit; }
+.mono-nums{ font-variant-numeric: tabular-nums; }
+#warp{ opacity: 0; letter-spacing: .08em; }
+#speed-ratio{ opacity: .45; margin-left: .6rem; }
+#speed-value.--flash{ animation: speedFlash .45s ease-out 1; }
+@keyframes speedFlash{ 0%{ transform: scale(1.35); opacity: .55; } 100%{ transform: scale(1); opacity: 1; } }
+#warp.--on{ opacity: 1; animation: blink 1.1s steps(1) infinite; }
+#timecode{ white-space: pre; }
+.blink{ animation: blink 1.1s steps(1) infinite; }
+@keyframes blink{ 50%{ opacity: .25; } }
+
+/* enter overlay mengikuti kursor */
+.enter{ position: fixed; z-index: 50; pointer-events: none; left: 0; top: 0; font-weight: 700; letter-spacing: -.02em;
+  transform: translate(-50%, -50%); transition: opacity .6s ease; }
+.enter span{ display: inline-block; background: rgba(0,0,0,.55); padding: 1rem; white-space: nowrap; }
+.enter.--out{ opacity: 0; }
+
+/* panel info: reveal pakai mask radial dari kiri-atas */
+.sidebar-bg{ position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  backdrop-filter: brightness(.45) blur(2px); -webkit-backdrop-filter: brightness(.45) blur(2px);
+  mask-image: radial-gradient(circle at 0% 0%, #fff calc((var(--sidebar-size) - 20) * 1%), transparent calc(var(--sidebar-size) * 1%));
+  -webkit-mask-image: radial-gradient(circle at 0% 0%, #fff calc((var(--sidebar-size) - 20) * 1%), transparent calc(var(--sidebar-size) * 1%));
+}
+.sidebar-wrap{ position: fixed; top: 6rem; left: 0; z-index: 2; pointer-events: none; width: 100%;
+  padding: 6rem var(--container-padding) 6rem var(--container-padding); }
+.sidebar-info{ font-size: 1.2rem; max-width: 48rem;
+  mask-image: radial-gradient(circle at 0% 0%, #fff calc((var(--sidebar-size) - 20) * 1%), transparent calc(var(--sidebar-size) * 1%));
+  -webkit-mask-image: radial-gradient(circle at 0% 0%, #fff calc((var(--sidebar-size) - 20) * 1%), transparent calc(var(--sidebar-size) * 1%));
+}
+.sidebar-info a{ pointer-events: none; }
+.sidebar-info.--on a{ pointer-events: auto; }
+.sidebar-info h4{ font-weight: 700; text-transform: uppercase; margin: 0 0 .5rem; font-size: 1.2rem; }
+.sidebar-info p{ margin: 0 0 2rem; }
+.sidebar-info .tagline{ font-weight: 700; text-transform: uppercase; }
+.sidebar-info .rule{ width: 100%; height: 1px; background: #fff; margin: 2rem 0; opacity: .5; }
+.sidebar-info .row{ display: flex; margin-bottom: .5rem; }
+.sidebar-info .row .k{ width: 10rem; font-weight: 700; }
+.sidebar-info a{ color: #fff; }
+.no-webgl{ position: fixed; inset: 0; display: grid; place-content: center; text-align: center; z-index: 99; padding: 4rem; }
+</style>
+</head>
+<body>
+
+<canvas id="gl"></canvas>
+
+<!-- ============ HUD ============ -->
+<div class="ui site-max" id="ui">
+  <div class="ui-inner">
+    <div class="hud-top">
+      <div class="main-grid">
+        <div class="cell-1">
+          <div class="flex">
+            <a class="brand label" href="#" id="brand">N O V A L &nbsp;L A B</a>
+            <div class="divider"></div>
+            <div class="label link-like" id="learn">Learn more</div>
+          </div>
+        </div>
+        <div class="cell-2">
+          <div class="flex" style="gap:1rem">
+            <span class="label" id="word-a">DITHER</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="main-grid">
+        <div class="cell-1">
+          <div class="flex mono-nums">
+            <div id="timecode">00:00:000</div>
+            <div class="divider"></div>
+            <div id="warp" class="label">WARP</div>
+          </div>
+        </div>
+        <div class="cell-2">
+          <div class="flex link-like" id="speed" style="white-space:nowrap">
+            <span class="label" id="speed-label">CLICK FOR SPEED</span>
+            <div class="divider"></div>
+            <span class="mono-nums" id="speed-value">×1</span>
+            <span class="mono-nums" id="speed-ratio" title="rasio seperti di situs sumber">1:00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- panel info -->
+  <div class="sidebar-bg" id="sidebar-bg"></div>
+  <div class="sidebar-wrap">
+    <div class="sidebar-info" id="sidebar">
+      <h4 id="sb-title">Dithering, WebGL & TSL — an audio reactive experiment</h4>
+      <p id="sb-copy">Halaman ini adalah replika tampilan dari astrodither.robertborghesi.is: dither berbasis bentuk pada
+        subjek 3D, simulasi cairan satu-pass, lalu dither + displacement di post-processing, selective bloom tanpa mask,
+        dan chromatic aberration. Subjek dirender raymarched (SDF), bukan model eksternal, jadi tidak ada aset pihak lain
+        yang dipakai.</p>
+      <h4>Some random tech</h4>
+      <p>Shape dither: tiap sel grid memilih bentuk (dot, cincin, plus, L, kotak) dari tingkat kecerahan + matriks Bayer 8&times;8.
+        Bloom diambil dari pass emission, aberration dari offset sampling per kanal RGB, displacement dari noise yang
+        bereaksi ke audio. Klik <span class="label">HOLD FOR SPEED</span> untuk ganti kecepatan, atau tahan di mana saja
+        untuk warp sementara.</p>
+      <p class="tagline">[signal. lost. beauty. found. digital. chaos.]</p>
+      <div class="rule"></div>
+      <div class="row"><div class="k">AUDIO</div><a href="#" id="sb-audio">synthesised loop (WebAudio)</a></div>
+      <div class="row"><div class="k">SRC</div><a href="https://astrodither.robertborghesi.is/" target="_blank" rel="noopener">astrodither.robertborghesi.is</a></div>
+      <div class="rule"></div>
+      <div class="label link-like" id="close">CLOSE</div>
+    </div>
+  </div>
+</div>
+
+<div class="enter" id="enter"><span>[:: CLICK TO ENTER + ENABLE AUDIO ::]</span></div>
+
+<script>
+/* ==================================================================
+   CONFIG — ubah bagian ini untuk dipasang di web sendiri
+   ================================================================== */
+const CONFIG = {
+  brand: 'NOVAL LAB',                 // teks kiri-atas
+  wordA: 'DITHER',                    // kata tetap kanan-atas
+  cycleWordsOnKick: false,            // true = kata kanan-atas berganti tiap kick audio (seperti sumber)
+  cycleWords: ['BOOM','TACK','TICK','CLAP','SNAP','THUMP','POP','CLICK','TAP','BANG',
+               'CLACK','WHAM','BOP','CHIK','DUM','TSST','CHH','THUD','PING','POW'],
+  speedSteps: [1, 2, 4, 10, 20],      // klik/hold untuk ganti kecepatan
+  holdMax: 60,                        // tahan = percepatan mulus sampai x lipat ini
+  holdRampTime: 6,                    // detik sampai ramp mendekati puncak (makin besar = makin landai)
+  warpSpeedCap: 35,                   // batas laju animasi scene (biar tidak strobe)
+  warpMax: 200,                       // acuan normalisasi efek lorong (streak/aberasi/FOV)
+  mobileSpeedSteps: [0.25, 0.5, 1, 2, 4],
+  cellPx: 10,                         // ukuran sel dither dalam px CSS (~10px pada 1440px)
+  gridWidth: 144,                     // jumlah sel dither sepanjang layar
+  sceneDetail: 3,                     // sampel scene per sel dither (makin tinggi = detail lebih tajam)
+  ditherLevels: 5,                    // jumlah tingkat kecerahan (bentuk)
+  palette: [                          // naik dari gelap ke terang
+    [0.69, 0.49, 1.00],   // lavender
+    [1.00, 0.28, 0.75],   // magenta
+    [0.30, 0.90, 1.00],   // cyan
+    [1.00, 0.83, 0.35],   // amber
+    [1.00, 1.00, 1.00]    // white
+  ],
+  aberration: 0.95,                   // kekuatan chromatic aberration
+  bloom: 0.60,
+  grain: 0.035,
+  bgHaze: 0.0,                        // 0 = hitam total (default), 1 = nebula seperti sumber
+  starDensity: 1.0,                   // 1 = normal, >1 = lebih banyak bintang
+  starStretch: 1.0,                   // panjang strek saat kecepatan tinggi
+  subjectCutLow: 0.11,                // ambang bawah: dither hanya di subjek (latar tidak ikut ter-dither)
+  subjectCutHigh: 0.26,
+  audio: true                         // audio-reactive (kick -> kata + pulsa)
+};
+
+/* parameter URL berguna untuk QA: ?audio=0 (tanpa audio), ?speed=4 (mulai dari step itu) */
+(function(){
+  const q = new URLSearchParams(location.search);
+  if(q.get('audio') === '0') CONFIG.audio = false;
+  const sp = parseInt(q.get('speed') || '', 10);
+  if(sp >= 0 && CONFIG.speedSteps[sp]) CONFIG.startStep = sp;
+})();
+
+/* ==================================================================
+   SHADER
+   ================================================================== */
+const VERT = `#version 300 es
+in vec2 aPos; void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+/* ---- pass 1: scene raymarch ke buffer resolusi-rendah ---- */
+const FRAG_SCENE = `#version 300 es
+precision highp float;
+uniform vec2  uRes;
+uniform float uTime;
+uniform vec2  uMouse;
+uniform float uKick;
+uniform float uEnter;
+uniform float uWarp;
+uniform float uHaze;
+out vec4 outColor;
+
+mat2 rot2(float a){ float c=cos(a), s=sin(a); return mat2(c,-s,s,c); }
+float hash21(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+34.56); return fract(p.x*p.y); }
+float noise2(vec2 p){
+  vec2 i = floor(p); vec2 f = fract(p);
+  f = f*f*(3.-2.*f);
+  float a = hash21(i), b = hash21(i+vec2(1,0)), c = hash21(i+vec2(0,1)), d = hash21(i+vec2(1,1));
+  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+}
+float fbm(vec2 p){ float v=0., a=0.5; for(int i=0;i<4;i++){ v += a*noise2(p); p *= 2.03; a *= 0.5; } return v; }
+
+/* cincin orbit: annulus pipih dengan SDF yang benar (tidak putus saat di-march) */
+float sdRing(vec3 p, float R, float W, float H){
+  vec2 q = vec2(length(p.xz) - R, p.y);
+  vec2 d = abs(q) - vec2(W, H);
+  return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+/* subjek utama: planet + dua cincin orbit + bulan kecil + serpihan melayang */
+float map(vec3 p){
+  /* subjek mengikuti kursor sedikit: geser kecil + kemiringan */
+  p.xz -= vec2(uMouse.x, uMouse.y*0.6) * 0.055;
+  /* saat warp subjek mengecil: terasa seperti ditinggal / menjauh di ujung lorong */
+  float scl = max(0.26, 1.0 - 0.74*uWarp);
+  vec3 ps = p / scl;
+  /* bidang cincin dimiringkan seperti Saturnus */
+  vec3 pr = ps; pr.xy *= rot2(0.42 + uMouse.y*0.16); pr.xz *= rot2(uMouse.x*0.22);
+  float rd = min(sdRing(pr, 0.50, 0.105, 0.019), sdRing(pr, 0.69, 0.075, 0.017));
+  float d = rd*0.65;                                     // langkah lebih rapat di sekitar cincin
+
+  /* planet: bola dengan riak halus supaya dither membentuk pita */
+  vec3 q = ps; q.xz *= rot2(uTime*0.10 + uMouse.x*0.30); q.xy *= rot2(0.20 + uMouse.y*0.20);
+  float planet = length(q) - 0.34;
+  planet += 0.007*sin(q.y*22.0 + uTime*1.1)*sin(q.x*19.0 - uTime*0.8);
+  planet += 0.004*sin(q.z*27.0 - uTime*0.7);
+  d = min(d, planet);
+
+  return d * scl;
+}
+
+vec3 calcNormal(vec3 p, float e){
+  vec2 h = vec2(e, 0.0);
+  return normalize(vec3(map(p+h.xyy)-map(p-h.xyy), map(p+h.yxy)-map(p-h.yxy), map(p+h.yyx)-map(p-h.yyx)));
+}
+
+/* latar luar angkasa: nebula berlapis + gumpalan warna seperti sumber */
+vec3 haze(vec3 rd){
+  float t = uTime*.022;
+  vec2 q = rd.xy * (1.15 + 0.5*abs(rd.z));
+  float n1 = fbm(q*1.35 + vec2(t, -t*.7));
+  float n2 = fbm(q*2.45 - vec2(t*.6, t*.9) + n1*0.6);
+  float n3 = fbm(q*4.10 + vec2(-t*.35, t*.5) + n2*0.5);
+  vec3 c = vec3(0.0);
+  c += vec3(.16,.42,.95) * pow(n1, 2.6) * .50;                                       // nebula biru
+  c += vec3(.62,.18,.78) * pow(n2, 3.0) * .42;                                       // nebula ungu
+  c += vec3(.85,.35,.55) * pow(n3, 3.8) * .26;                                       // nebula magenta
+  c *= .60 + .55*t;
+  c *= 0.55 + 0.55*(0.5+0.5*rd.y);
+  return c;
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy - .5*uRes) / uRes.y;
+  vec3 ro = vec3(0.0, 0.14, 4.15);
+  ro.xz *= rot2(0.06*sin(uTime*.15) + uMouse.x*.10);
+  vec3 ta = vec3(uMouse.x*.13, 0.06 + uMouse.y*.10, 0.0);
+  vec3 f = normalize(ta - ro);
+  vec3 r = normalize(cross(vec3(0.,1.,0.), f));
+  vec3 u = cross(f, r);
+  vec3 rd = normalize(uv.x*r + uv.y*u + (1.55 - 0.62*uWarp)*f);   // FOV melebar: kesan lorong
+
+  vec3 col = haze(rd) * (0.55 + 0.45*uEnter) * uHaze;
+  float emissive = 0.0;
+
+  /* raymarch */
+  float t = 0.0; float hit = -1.0; vec3 n = vec3(0.);
+  for(int i=0;i<72;i++){
+    vec3 p = ro + rd*t;
+    float d = map(p);
+    if(d < 0.0012){ hit = t; n = calcNormal(p, 0.0016); break; }
+    t += d;
+    if(t > 9.0) break;
+  }
+
+  if(hit > 0.0){
+    vec3 p = ro + rd*hit;
+    float scl = max(0.26, 1.0 - 0.74*uWarp);
+    vec3 pm = p; pm.xz -= vec2(uMouse.x, uMouse.y*0.6) * 0.055;
+    pm /= scl;
+    vec3 pr = pm; pr.xy *= rot2(0.42 + uMouse.y*0.16); pr.xz *= rot2(uMouse.x*0.22);
+    float rr = length(pr.xz);
+    float ringM = step(abs(pr.y), 0.048)*step(0.36, rr)*step(rr, 0.80);
+    bool isFloor = p.y < -2.5;
+    if(!isFloor){
+      vec3 l1 = normalize(vec3(-.6,.8,.55));
+      vec3 l2 = normalize(vec3(.75,-.25,.4));
+      float dif = max(0., dot(n,l1));
+      float rim = pow(1.-max(0., dot(n,-rd)), 2.2);
+      float spec = pow(max(0., dot(reflect(-l1,n), -rd)), 34.);
+      float f1 = smoothstep(-1.3, 1.1, p.y);
+      vec3 alb = mix(vec3(.62,.44,.98), vec3(1.0,.26,.72), f1);
+      alb = mix(alb, vec3(.28,.88,1.0), .45*smoothstep(.25,1.0,n.y*.5+.5));
+      alb = mix(alb, vec3(.95,.98,1.0), .55*spec);
+      float ringDepth = 0.45 + 0.55*smoothstep(-0.25, 0.25, p.z);   // belakang planet diredupkan
+      alb = mix(alb, vec3(.80,.94,1.00), ringM*0.90);     // cincin: putih-cyan terang
+      alb *= mix(1.0, ringDepth, ringM);
+      vec3 c = alb*(.14 + 1.15*dif)*vec3(1.0,.96,1.06);
+      c += vec3(1.0,.52,.85) * rim*1.05;                // rim magenta
+      c += vec3(.32,.88,1.0) * pow(rim,3.0)*.60;         // rim cyan
+      c += vec3(1.0,.95,.85) * spec*1.15;
+      col = c;
+      c *= 1.0 - 0.95*uWarp;                            // planet memudar saat warp penuh
+      emissive = clamp((rim*1.1 + spec*2.0 + dif*.12 + ringM*0.55) * (1.0 - 0.85*uWarp), 0., 2.0);
+    }
+  }
+
+  /* kick → kilatan */
+  col *= 1.0 + uKick*0.16;
+  outColor = vec4(col, emissive);
+}`;
+
+/* ---- pass 2: bloom dari emission ---- */
+const FRAG_BLOOM = `#version 300 es
+precision highp float;
+uniform sampler2D uScene;
+uniform vec2 uTexel;
+out vec4 outColor;
+void main(){
+  vec2 uv = gl_FragCoord.xy * uTexel;
+  vec3 sum = vec3(0.); float wsum = 0.;
+  for(int y=-4;y<=4;y++){
+    for(int x=-4;x<=4;x++){
+      vec2 o = vec2(float(x), float(y));
+      float w = exp(-dot(o,o)/12.0);
+      vec4 s = texture(uScene, uv + o*uTexel*1.6);
+      sum += s.rgb * s.a * w;
+      wsum += w;
+    }
+  }
+  outColor = vec4(sum / wsum, 1.0);
+}`;
+
+/* ---- pass 3: dither bentuk + bloom + aberration + displacement + dust ---- */
+const FRAG_COMP = `#version 300 es
+precision highp float;
+uniform sampler2D uScene;
+uniform sampler2D uBloom;
+uniform vec2  uRes;
+uniform float uCell;
+uniform float uTime;
+uniform float uSpeed;
+uniform float uKick;
+uniform vec2  uMouse;
+uniform vec2  uCut;
+uniform float uAberr;
+uniform float uBloomAmt;
+uniform float uGrain;
+uniform float uWarp;
+uniform float uDensity;
+uniform float uStretch;
+uniform float uLevels;
+uniform vec3  uPal[5];
+out vec4 outColor;
+
+float hash21(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+34.56); return fract(p.x*p.y); }
+mat2 rot2(float a){ float c=cos(a), s=sin(a); return mat2(c,-s,s,c); }
+
+/* matriks Bayer 8x8 */
+float bayer(vec2 c){
+  int x = int(mod(c.x, 8.0)); int y = int(mod(c.y, 8.0));
+  int idx = x + y*8;
+  float m[64] = float[64](
+     0.,32., 8.,40., 2.,34.,10.,42.,
+    48.,16.,56.,24.,50.,18.,58.,26.,
+    12.,44., 4.,36.,14.,46., 6.,38.,
+    60.,28.,52.,20.,62.,30.,54.,22.,
+     3.,35.,11.,43., 1.,33., 9.,41.,
+    51.,19.,59.,27.,49.,17.,57.,25.,
+    15.,47., 7.,39.,13.,45., 5.,37.,
+    63.,31.,55.,23.,61.,29.,53.,21.);
+  return m[idx]/64.;
+}
+
+float sdBox2(vec2 p, vec2 b){ vec2 q = abs(p)-b; return length(max(q,0.))+min(max(q.x,q.y),0.); }
+
+/* bentuk dither: 0 kosong, 1 dot, 2 cincin, 3 plus, 4 kotak */
+float shapeMask(int s, vec2 f, float aa){
+  float d = 10.;
+  if(s==1) d = length(f) - .27;
+  else if(s==2) d = abs(length(f) - .52) - .16;
+  else if(s==3) d = min(sdBox2(f, vec2(.68,.19)), sdBox2(f, vec2(.19,.68)));
+  else if(s==4) d = min(sdBox2(f - vec2(-.16,-.16), vec2(.70,.20)), sdBox2(f - vec2(-.16,.16), vec2(.20,.70)));
+  else if(s==5) d = sdBox2(f, vec2(.66));
+  if(s==0) return 0.;
+  return clamp(.5 - d/aa, 0., 1.);
+}
+
+/* warna tile untuk satu titik sampling (dipakai per kanal RGB) */
+vec3 tileColor(vec2 uvSample, vec2 resPx, float cell){
+  vec2 px = uvSample * resPx;
+  vec2 cellIdx = floor(px / cell);
+  float b = bayer(cellIdx);
+  vec2 center = (cellIdx + .5) * cell;
+  vec2 jitter = (vec2(hash21(cellIdx), hash21(cellIdx+7.3)) - .5) * cell * .55;
+  vec2 sPx = center + jitter + (b - .5) * cell * .5;
+  /* 4 sampel per sel: fitur tipis (cincin, bulan) tetap terbaca */
+  vec3 scene = texture(uScene, sPx / resPx).rgb;
+  float sLum = dot(scene, vec3(.299,.587,.114));
+  for(int s=0;s<3;s++){
+    vec2 o = (s==0 ? vec2(-1.0,-1.0) : (s==1 ? vec2(1.0,-1.0) : vec2(-1.0,1.0))) * cell * 0.30;
+    vec3 c2 = texture(uScene, (sPx + o) / resPx).rgb;
+    float l2 = dot(c2, vec3(.299,.587,.114));
+    if(l2 > sLum){ scene = c2; sLum = l2; }
+  }
+
+  float lum = dot(scene, vec3(.299,.587,.114));
+  float v = lum * uLevels + (b - .5) * 0.85;          // ordered dither
+  int level = int(clamp(floor(v + 0.5), 0., uLevels));
+
+  vec2 f = fract(px / cell) * 2.0 - 1.0;
+  int shape = clamp(level, 0, 5);
+  float m = shapeMask(shape, f, 1.6);
+
+  vec3 pal = uPal[clamp(level, 0, 4)];
+  vec3 tileCol = mix(scene*1.30 + pal*0.50, pal, .45 - .40*uWarp) * (0.30 + 0.95*float(level)/uLevels);
+  tileCol *= 1.0 - 0.85*uWarp;                       // tile ikut memudar saat warp penuh
+  float subject = smoothstep(uCut.x, uCut.y, lum);   // dither hanya pada subjek 3D
+  return mix(vec3(0.0), tileCol, m * subject);
+}
+
+
+/* noise untuk displacement cairan */
+float noise2(vec2 p){
+  vec2 i = floor(p); vec2 f = fract(p);
+  f = f*f*(3.-2.*f);
+  float a = hash21(i), b = hash21(i+vec2(1,0)), c = hash21(i+vec2(0,1)), d = hash21(i+vec2(1,1));
+  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+}
+
+void main(){
+  vec2 resPx = vec2(uRes.x, uRes.y);
+  vec2 basePx = gl_FragCoord.xy;
+  vec2 uv = basePx / resPx;
+
+  /* ---- displacement ala cairan ---- */
+  vec2 q = uv*3.2;
+  float n1 = noise2(q + vec2(uTime*.07, -uTime*.05));
+  float n2 = noise2(q*1.7 + vec2(-uTime*.05, uTime*.06) + n1);
+  float flow = (0.004 + uKick*0.016) * (1.0 + uSpeed*0.03);
+  vec2 disp = vec2(n2-0.5, n1-0.5) * flow * 2.0;
+  vec2 uvD = uv + disp;
+  vec2 pxD = uvD * resPx;
+
+  /* ---- chromatic aberration: sampling per kanal digeser radial ---- */
+  vec2 dir = (uvD - 0.5);
+  float ab = uAberr * 0.0022 * length(dir) * (1.0 + length(dir)*1.6) * (1.0 + uKick*1.4) * (1.0 + 1.6*uWarp);
+  vec2 uvR = uvD + dir*ab, uvG = uvD, uvB = uvD - dir*ab;
+
+  float cell = uCell;
+  vec3 cR = tileColor(uvR, resPx, cell);
+  vec3 cG = tileColor(uvG, resPx, cell);
+  vec3 cB = tileColor(uvB, resPx, cell);
+  vec3 col = vec3(cR.r, cG.g, cB.b);
+
+  /* ---- bloom ---- */
+  vec3 bl = texture(uBloom, uvD).rgb * uBloomAmt * (0.85 + uKick*0.6);
+  col += bl * vec3(1.0, .92, 1.05);
+  col += bl * vec3(.6,.9,1.0) * 0.20;   // halo cyan tipis
+
+  /* ---- perjalanan luar angkasa: bintang mengalir keluar dari titik hilang ----
+     posisi bintang = (slot + H + shift) * selPx  ->  setiap bintang benar-benar
+     bergerak menjauh dari pusat, dengan ekor (motion blur) ke arah pusat.       */
+  vec2 sc0 = (uvD - .5 - uMouse*0.03) * vec2(resPx.x/resPx.y, 1.0);
+  float rad = length(sc0);
+  float ang = atan(sc0.y, sc0.x) / 3.14159265;             // -1..1 (2 = satu putaran)
+  float radPx = rad*resPx.y;
+  float wS = uWarp*uWarp;                                  // efek warp dibentuk kuadratik
+  float elong = clamp((uSpeed - 1.0)*0.075 + uKick*0.22, 0.0, 1.0) * uStretch;
+  for(int i=0;i<4;i++){
+    float fi = float(i);
+    float cellPx = 104.0 / pow(1.5, fi);                   // ukuran sel: 104, 69, 46, 31 px
+    float Nph  = resPx.y/cellPx;
+    float Nang = max(6.0, floor(1.7*resPx.y/cellPx) * (1.0 + 1.6*wS));   // sel angular ditambah saat warp
+    float angCellPx = 3.14159265*resPx.y/Nang*max(rad, 0.04);
+    float spd = (0.9 - 0.12*fi) * 0.06;                    // sel per detik simulasi
+    float shift = uTime*spd + fi*.31;                      // jarak terbang bintang (dalam sel)
+    float U = rad*Nph - shift;                             // koordinat slot untuk piksel ini
+    float ie = floor(U);
+    float fU = U - ie;
+    float ia = floor(ang*Nang);
+    float thr = 0.72 + fi*0.035 - 0.05*(uDensity - 1.0);
+    float tailPx = cellPx*(0.45 + 4.0*wS + 6.0*elong);     // panjang ekor (ke arah pusat)
+    float kMax = 1.0 + tailPx/cellPx;
+    for(int k=0;k<5;k++){
+      if(float(k) > kMax) break;
+      vec2 idk = vec2(ia, ie + float(k)) + fi*97.0;
+      if(hash21(idk) > thr){
+        float H = 0.08 + 0.84*hash21(idk + 7.7);                    // posisi bintang di dalam slot
+        float offx = (hash21(idk+1.3) - .5)*.6*(1.0 - 0.8*wS);      // jitter angular hilang saat warp
+        float dxPx = (ang*Nang - (ia + .5 + offx))*angCellPx;
+        float dyPx = (float(k) + H - fU)*cellPx;                    // >0: bintang di luar piksel
+        float halfW = 1.4 + 0.9*wS;
+        float e = exp(-(dxPx/halfW)*(dxPx/halfW));
+        float head = e / (1.0 + (dyPx/2.0)*(dyPx/2.0));
+        float tail = 0.0;
+        if(dyPx > 0.0 && tailPx > 1.0){
+          tail = e * exp(-dyPx/tailPx) * (1.0 - smoothstep(0.25, 1.0, dyPx/tailPx));
+        }
+        float m = head + tail*(0.85 + 0.45*wS);
+        vec3 sc = mix(vec3(1.0,.45,.86), vec3(.40,.93,1.0), hash21(idk+3.));
+        sc = mix(sc, vec3(1.0,.86,.46), step(.70, hash21(idk+4.)));
+        sc = mix(sc, vec3(.72,.62,1.0), step(.91, hash21(idk+5.)));
+        sc = mix(sc, vec3(.78,.90,1.00), uWarp*0.55);                    // biru-shift saat warp
+        float cen = mix(0.32, 1.0, smoothstep(0.0, 0.26, rad));          // pusat lebih redup, garis tetap ke pusat
+        float fade = smoothstep(1.06, .05, rad) * cen;
+        col += sc * m * fade * (0.50 + .5*uKick) * (1.0 - 0.13*fi) * (1.0 + 0.45*elong + 0.70*wS);
+      }
+    }
+  }
+  /* bintang jauh: titik tajam, tanpa strek */
+  vec2 st = (uvD - .5) * vec2(resPx.x/resPx.y, 1.0) * 150.0;
+  vec2 sid = floor(st); vec2 slp = fract(st) - .5;
+  float sh = hash21(sid*1.37);
+  if(sh > 0.925){
+    vec2 so = (vec2(hash21(sid+11.), hash21(sid+13.)) - .5)*.7;
+    float sd = smoothstep(.12, .0, length(slp - so));
+    float tw = .6 + .4*sin(uTime*2.4 + sh*40.0);
+    col += vec3(.93,.96,1.0) * sd * tw * .65;
+  }
+
+  /* ---- grain + scanline halus ---- */
+  col += (hash21(basePx + fract(uTime)*371.) - .5) * uGrain;
+  col *= 1.0 - 0.03*sin(basePx.y*3.14159/resPx.y*resPx.y*.5);
+
+  /* vignette */
+  float vig = smoothstep(1.25, .35, length((uv-0.5)*vec2(resPx.x/resPx.y,1.0)));
+  col *= 0.35 + 0.65*vig;
+
+  col = pow(max(col, 0.0), vec3(1.02));
+  outColor = vec4(col, 1.0);
+}`;
+
+/* ==================================================================
+   WEBGL RUNTIME
+   ================================================================== */
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl2', { antialias:false, alpha:false, premultipliedAlpha:false, powerPreference:'high-performance' });
+
+if(!gl){
+  document.body.insertAdjacentHTML('beforeend', '<div class="no-webgl"><div class="label">WEBGL2 TIDAK TERSEDIA</div><p>Browser ini belum mendukung WebGL2.</p></div>');
+} else {
+  start(gl);
+}
+
+function start(gl){
+  const isMobile = matchMedia('(max-width: 640px)').matches || /Mobi|Android/i.test(navigator.userAgent);
+
+  /* ---- program helpers ---- */
+  function compile(type, src){
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src.slice(0, 400));
+    return s;
+  }
+  function program(fs){
+    const p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+    gl.bindAttribLocation(p, 0, 'aPos');
+    gl.linkProgram(p);
+    if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const names = {};
+    const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for(let i=0;i<n;i++){ const info = gl.getActiveUniform(p, i); const nm = info.name.replace('[0]',''); names[nm] = gl.getUniformLocation(p, nm); }
+    const u = new Proxy(names, { get: (t, k) => (k in t ? t[k] : null) });
+    return { p, u };
+  }
+
+  const pScene = program(FRAG_SCENE);
+  const pBloom = program(FRAG_BLOOM);
+  const pComp  = program(FRAG_COMP);
+
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const vbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+  /* ---- textures / framebuffers ---- */
+  function makeTex(w, h){
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  function makeFB(tex){
+    const fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return fb;
+  }
+
+  let W = 0, H = 0, cellPx = 10, lowW = 0, lowH = 0, bloomW = 0, bloomH = 0;
+  let sceneTex, sceneFB, bloomTex, bloomFB;
+
+  function resize(){
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    W = Math.floor(innerWidth * dpr); H = Math.floor(innerHeight * dpr);
+    canvas.width = W; canvas.height = H;
+    cellPx = Math.max(4, (innerWidth / CONFIG.gridWidth) * dpr);
+    const detail = Math.max(1, CONFIG.sceneDetail || 1);
+    lowW = Math.max(32, Math.ceil(W / (cellPx / detail))); lowH = Math.max(32, Math.ceil(H / (cellPx / detail)));
+    bloomW = Math.max(16, lowW >> 1); bloomH = Math.max(16, lowH >> 1);
+    sceneTex = makeTex(lowW, lowH); sceneFB = makeFB(sceneTex);
+    bloomTex = makeTex(bloomW, bloomH); bloomFB = makeFB(bloomTex);
+    gl.viewport(0, 0, W, H);
+  }
+
+  /* ---- audio: loop tersintesis + deteksi kick ---- */
+  const audio = { ctx:null, analyser:null, data:null, ready:false, kickEnv:0 };
+  function initAudio(){
+    if(!CONFIG.audio || audio.ready) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    const ctx = new AC();
+    const master = ctx.createGain(); master.gain.value = 0.5;
+    const analyser = ctx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.6;
+    master.connect(analyser); analyser.connect(ctx.destination);
+    // drone bass
+    const drone = ctx.createOscillator(); drone.type = 'sawtooth'; drone.frequency.value = 55;
+    const dg = ctx.createGain(); dg.gain.value = 0.06;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
+    drone.connect(lp); lp.connect(dg); dg.connect(master); drone.start();
+    // pola kick + hat
+    const startAt = ctx.currentTime + 0.1;
+    function schedule(t){
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(118, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.16);
+      g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.34);
+    }
+    let t0 = startAt, onBeat = 0;
+    setInterval(() => {
+      const now = ctx.currentTime;
+      while(t0 < now + 0.4){
+        schedule(t0);
+        if(onBeat % 2 === 1) scheduleHat(t0 + 0.25);
+        onBeat++;
+        t0 += onBeat % 4 === 3 ? 0.42 : 0.30;
+      }
+    }, 120);
+    function scheduleHat(t){
+      const len = Math.floor(ctx.sampleRate * 0.05);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 3);
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 5200;
+      const g = ctx.createGain(); g.gain.value = 0.22;
+      src.connect(hp); hp.connect(g); g.connect(master); src.start(t);
+    }
+    audio.ctx = ctx; audio.analyser = analyser; audio.data = new Uint8Array(analyser.frequencyBinCount); audio.ready = true;
+    ctx.resume();
+  }
+  let lastKick = 0, wordIndex = 0, kickCount = 0;
+  function pollAudio(now){
+    if(!audio.ready) return;
+    audio.analyser.getByteFrequencyData(audio.data);
+    let low = 0; for(let i=0;i<6;i++) low += audio.data[i];
+    low /= (6*255);
+    audio.kickEnv += (low - audio.kickEnv) * 0.25;
+    if(low > 0.42 && now - lastKick > 200){
+      lastKick = now; onKick();
+    }
+  }
+  function onKick(){
+    kickCount++;
+    if(!CONFIG.cycleWordsOnKick) return;        // default: kata kanan-atas tetap
+    const el = document.getElementById('word-a');
+    if(kickCount % 3 === 0){ el.textContent = CONFIG.wordA; }
+    else {
+      el.textContent = CONFIG.cycleWords[wordIndex % CONFIG.cycleWords.length];
+      wordIndex++;
+    }
+    document.title = el.textContent + ' — DITHER DEMO';
+  }
+
+  /* ---- state ---- */
+  const state = {
+    entered: false, enterP: 0, timeScale: 1, simTime: 0, last: performance.now(),
+    mouse: { x:0, y:0, tx:0, ty:0 }, sidebar: false, sidebarSize: 0, frames: 0,
+    boostRamp: 1, holding: false, holdT: 0, warp: 0, speedPulse: 0,
+    speedIndex: 0, holdTimer: null
+  };
+  const speedSteps = isMobile ? CONFIG.mobileSpeedSteps : CONFIG.speedSteps;
+  state.speedIndex = Math.min(CONFIG.startStep || 0, speedSteps.length - 1);
+  const elWarp = document.getElementById('warp');
+  elWarp.textContent = 'WARP ×1';
+
+  /* ---- HUD ---- */
+  const elTime = document.getElementById('timecode');
+  const elSpeedVal = document.getElementById('speed-value');
+  const elSpeedRatio = document.getElementById('speed-ratio');
+  const elSpeedLabel = document.getElementById('speed-label');
+  document.getElementById('brand').textContent = CONFIG.brand;
+  document.getElementById('word-a').textContent = CONFIG.wordA;
+
+  function fmtRatio(s){                       // konvensi situs sumber: 1:00 = 1x, 0:05 = 20x
+    const v = Math.round(100 / s);
+    return Math.floor(v/100) + ':' + String(v % 100).padStart(2, '0');
+  }
+  function applySpeed(changed){
+    const base = speedSteps[state.speedIndex % speedSteps.length];
+    state.timeScale = state.sidebar ? (isMobile ? 0.25 : 0.1) : base;
+    elSpeedVal.textContent = '×' + base;
+    elSpeedRatio.textContent = fmtRatio(base);
+    if(changed){ state.speedPulse = 1; elSpeedVal.classList.remove('--flash'); void elSpeedVal.offsetWidth; elSpeedVal.classList.add('--flash'); }
+  }
+  applySpeed();
+
+  const speedEl = document.getElementById('speed');
+  speedEl.addEventListener('pointerdown', () => {
+    if(state.sidebar) return;
+    stepSpeed();
+    state.holdTimer = setInterval(stepSpeed, 320);
+  });
+  /* tahan di mana saja -> percepatan sementara supaya pergerakan langsung terasa */
+  addEventListener('pointerdown', (e) => {
+    if(e.target && e.target.closest && e.target.closest('#sidebar, #speed, #learn, #close')) return;
+    state.holding = true;
+  });
+  const endHold = () => { clearInterval(state.holdTimer); state.holdTimer = null; state.holding = false; };
+  addEventListener('pointerup', endHold);
+  addEventListener('pointercancel', endHold);
+  addEventListener('blur', endHold);
+  function stepSpeed(){
+    state.speedIndex++;
+    applySpeed(true);
+  }
+  elSpeedLabel.textContent = matchMedia('(hover: hover)').matches ? 'HOLD FOR SPEED' : 'TAP FOR SPEED';
+
+  /* sidebar */
+  const sidebarEl = document.getElementById('sidebar');
+  document.getElementById('learn').addEventListener('click', () => { state.sidebar = true; applySpeed(); });
+  document.getElementById('close').addEventListener('click', () => { state.sidebar = false; applySpeed(); });
+  document.getElementById('sb-title').textContent = CONFIG.brand + ' — dither, WebGL & audio reactive experiment';
+
+  /* enter overlay + audio */
+  const enterEl = document.getElementById('enter');
+  function onMove(e){
+    const x = e.clientX ?? innerWidth/2, y = e.clientY ?? innerHeight/2;
+    enterEl.style.left = x + 'px'; enterEl.style.top = y + 'px';
+    state.mouse.tx = (x / innerWidth) * 2 - 1;
+    state.mouse.ty = -((y / innerHeight) * 2 - 1);
+  }
+  addEventListener('pointermove', onMove);
+  onMove({ clientX: innerWidth/2, clientY: innerHeight/2 });
+  addEventListener('click', () => {
+    if(state.entered) return;
+    state.entered = true;
+    initAudio();
+    enterEl.classList.add('--out');
+    document.getElementById('ui').classList.add('--on');
+  }, { once:false });
+
+  /* sidebar reveal (mask radial) */
+  function animateSidebar(dt){
+    const target = state.sidebar ? (isMobile ? 70 : 100) : 0;
+    state.sidebarSize += (target - state.sidebarSize) * Math.min(1, dt * 1000 / 1700 * 2.2);
+    document.documentElement.style.setProperty('--sidebar-size', state.sidebarSize.toFixed(3));
+    sidebarEl.classList.toggle('--on', state.sidebar);
+    // angka waktu ikut melambat: tampilkan 4 frame
+  }
+
+  /* ---- render loop ---- */
+  function frame(now){
+    const dt = Math.min(0.05, (now - state.last) / 1000);
+    state.last = now;
+    state.frames++;
+    /* ramp kecepatan bertahap: tahan -> naik mulus (kubik), lepas -> turun mulus */
+    if(state.holding){
+      state.holdT += dt;
+      const t = Math.min(1, state.holdT / Math.max(0.5, CONFIG.holdRampTime));
+      state.boostRamp = 1 + (CONFIG.holdMax - 1) * t * t * t;
+    } else {
+      state.holdT = 0;
+      state.boostRamp += (1 - state.boostRamp) * Math.min(1, dt * 3.2);
+    }
+    const effScale = state.timeScale * state.boostRamp;
+    const sceneRate = Math.min(effScale, CONFIG.warpSpeedCap);      // laju scene dibatasi (anti-strobe)
+    state.warp = Math.min(1, Math.log(Math.max(effScale, 1)) / Math.log(CONFIG.warpMax));
+    state.simTime += dt * sceneRate;
+
+    pollAudio(now);
+    audio.kickEnv *= 0.965;
+    state.speedPulse *= 0.90;
+    const kickVis = Math.max(audio.kickEnv, state.speedPulse);
+    state.mouse.x += (state.mouse.tx - state.mouse.x) * 0.06;
+    state.mouse.y += (state.mouse.ty - state.mouse.y) * 0.06;
+    state.enterP += ((state.entered ? 1 : 0) - state.enterP) * 0.03;
+    animateSidebar(dt);
+    const warping = state.entered && (state.holding || effScale > 1.05);
+    elWarp.classList.toggle('--on', warping);
+    if(warping && state.frames % 4 === 0) elWarp.textContent = 'WARP ×' + (effScale < 10 ? effScale.toFixed(1) : Math.round(effScale));
+
+    // timecode tiap 4 frame
+    if(state.frames % 4 === 0){
+      const e = state.simTime;                      // detik berjalan (skala waktu mempengaruhi)
+      const m = Math.floor(e/60), s = Math.floor(e % 60), ms = Math.floor((e - Math.floor(e))*1000);
+      elTime.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0') + ':' + String(ms).padStart(3,'0');
+    }
+
+    // pass 1 — scene
+    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFB);
+    gl.viewport(0, 0, lowW, lowH);
+    gl.useProgram(pScene.p);
+    gl.uniform2f(pScene.u.uRes, lowW, lowH);
+    gl.uniform1f(pScene.u.uTime, state.simTime);
+    gl.uniform2f(pScene.u.uMouse, state.mouse.x, state.mouse.y);
+    gl.uniform1f(pScene.u.uKick, kickVis);
+    gl.uniform1f(pScene.u.uEnter, state.enterP);
+    gl.uniform1f(pScene.u.uHaze, CONFIG.bgHaze);
+    gl.uniform1f(pScene.u.uWarp, state.warp);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // pass 2 — bloom
+    gl.bindFramebuffer(gl.FRAMEBUFFER, bloomFB);
+    gl.viewport(0, 0, bloomW, bloomH);
+    gl.useProgram(pBloom.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+    gl.uniform1i(pBloom.u.uScene, 0);
+    gl.uniform2f(pBloom.u.uTexel, 1/lowW, 1/lowH);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // pass 3 — composite
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, W, H);
+    gl.useProgram(pComp.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, sceneTex); gl.uniform1i(pComp.u.uScene, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, bloomTex); gl.uniform1i(pComp.u.uBloom, 1);
+    gl.uniform2f(pComp.u.uRes, W, H);
+    gl.uniform1f(pComp.u.uCell, cellPx);
+    gl.uniform1f(pComp.u.uTime, state.simTime);
+    gl.uniform1f(pComp.u.uSpeed, effScale);
+    gl.uniform1f(pComp.u.uWarp, state.warp);
+    gl.uniform1f(pComp.u.uKick, kickVis);
+    gl.uniform2f(pComp.u.uMouse, state.mouse.x, state.mouse.y);
+    gl.uniform2f(pComp.u.uCut, CONFIG.subjectCutLow, CONFIG.subjectCutHigh);
+    gl.uniform1f(pComp.u.uDensity, CONFIG.starDensity);
+    gl.uniform1f(pComp.u.uStretch, CONFIG.starStretch);
+    gl.uniform1f(pComp.u.uAberr, CONFIG.aberration);
+    gl.uniform1f(pComp.u.uBloomAmt, CONFIG.bloom);
+    gl.uniform1f(pComp.u.uGrain, CONFIG.grain);
+    gl.uniform1f(pComp.u.uLevels, CONFIG.ditherLevels);
+    const pal = new Float32Array(15);
+    for(let i=0;i<5;i++){
+      const c = CONFIG.palette[i] || CONFIG.palette[CONFIG.palette.length-1];
+      pal[i*3] = c[0]; pal[i*3+1] = c[1]; pal[i*3+2] = c[2];
+    }
+    gl.uniform3fv(pComp.u.uPal, pal);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    requestAnimationFrame(frame);
+  }
+
+  addEventListener('resize', resize);
+  // sel dither dibuat dari lebar viewport CSS, bukan dari cellPx mentah
+  resize();
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>
